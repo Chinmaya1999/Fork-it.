@@ -15,8 +15,8 @@ export function initSocket(server: HttpServer) {
   setIO(io);
   io.use(async (socket, next) => { // authenticate the connection with the same session cookie as REST
     try {
-      const token = parseCookies(socket.handshake.headers.cookie)[COOKIE]; if (!token) return next(new Error('unauthorized'));
-      const p = jwt.verify(token, env.JWT_SECRET) as { sub: string; v: number }; const u = await User.findById(p.sub);
+      const token = parseCookies(socket.handshake.headers.cookie)[COOKIE] ?? (typeof socket.handshake.auth?.token === 'string' ? socket.handshake.auth.token : undefined); if (!token) return next(new Error('unauthorized'));
+      const p = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub: string; v: number }; const u = await User.findById(p.sub);
       if (!u || u.status !== 'active' || u.tokenVersion !== p.v) return next(new Error('unauthorized'));
       socket.data.actor = { id: u.id, role: u.role, name: u.name } satisfies Actor; next();
     } catch { next(new Error('unauthorized')); }

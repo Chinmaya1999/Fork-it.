@@ -33,7 +33,7 @@ export function createApp() {
   app.use((req, res, next) => { req.id = req.get('x-request-id') ?? crypto.randomUUID(); res.setHeader('x-request-id', req.id); next(); });
   app.use(pinoHttp({ logger, genReqId: (r) => (r as any).id }));
   app.use(helmet());
-  app.use(cors({ origin: [env.CLIENT_URL], credentials: true }));
+  app.use(cors({ origin: [env.CLIENT_URL], credentials: true, exposedHeaders: ['Content-Disposition'] }));
   app.post('/api/v1/webhooks/razorpay', express.raw({ type: '*/*', limit: '1mb' }), (req, res, next) => { razorpayWebhook(req, res).catch(next); }); // raw body, before JSON parsing
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check, Download, Lock, MessagesSquare } from 'lucide-react';
 import { formatINR } from '@projectforge/shared';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, downloadFile } from '@/lib/api';
 import { bytes, day, dt, label } from '@/lib/format';
 import { Badge, Button, Card, ErrorState, Input, Skeleton, Textarea } from '@/components/ui';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -23,7 +23,7 @@ export default function CustomDetail() {
   const act = useMutation({ mutationFn: (a: string) => api.post(`/custom-requests/${id}/actions`, { action: a, note: note || undefined }), onSuccess: () => { setNote(''); setNoteFor(undefined); refresh(); }, onError: fail });
   const comment = useMutation({ mutationFn: ({ mid, body }: { mid: string; body: string }) => api.post(`/custom-requests/${id}/milestones/${mid}/comments`, { body }), onSuccess: refresh, onError: fail });
   const openChat = async () => { try { const r = await api.post<{ conversation: { _id: string } }>(`/conversations/custom/${id}`); nav(`/dashboard/messages/${r.conversation._id}`); } catch (e) { fail(e); } };
-  const download = async (fid: string) => { try { const r = await api.post<{ url: string }>(`/files/${fid}/link`); window.location.assign(r.url); } catch (e) { fail(e); } };
+  const download = async (fid: string) => { try { const r = await api.post<{ url: string }>(`/files/${fid}/link`); await downloadFile(r.url); } catch (e) { fail(e); } };
   if (q.isLoading) return <Skeleton className="h-72" />; if (q.error) return <ErrorState message="Request not found." />;
   const { request: r, quotations, milestones, orders, files, lockedCount, actions } = q.data; const quote = quotations.find((x: any) => x.status === 'sent' || x.status === 'accepted') ?? quotations[0];
   const stepIdx = PATH.indexOf(r.status === 'clarification' ? 'under_review' : r.status === 'revision_requested' ? 'student_review' : r.status);

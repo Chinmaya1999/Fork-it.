@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Download, LifeBuoy, Receipt } from 'lucide-react';
 import { formatINR } from '@projectforge/shared';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, downloadFile } from '@/lib/api';
 import { bytes, dt, label } from '@/lib/format';
 import { Button, Card, ErrorState, LinkButton, Skeleton } from '@/components/ui';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -14,7 +14,7 @@ interface F { _id: string; label: string; kind: string; version: string; origina
 export default function OrderDetail() {
   const { id } = useParams(); const [err, setErr] = useState<string>();
   const q = useQuery({ queryKey: ['order', id], queryFn: () => api.get<{ order: OrderView; files: F[]; guide: string; attempts: { status: string; createdAt: string; failureReason?: string }[] }>(`/orders/${id}`), retry: false });
-  const download = async (f: F) => { setErr(undefined); try { const r = await api.post<{ url: string }>(`/files/${f._id}/link`); window.location.assign(r.url); } catch (e) { setErr((e as ApiError).message); } };
+  const download = async (f: F) => { setErr(undefined); try { const r = await api.post<{ url: string }>(`/files/${f._id}/link`); await downloadFile(r.url); } catch (e) { setErr((e as ApiError).message); } };
   if (q.isLoading) return <Skeleton className="h-64" />;
   if (q.error) return <ErrorState message="This order was not found." />;
   const { order: o, files, guide, attempts } = q.data!; const paid = o.status === 'paid';

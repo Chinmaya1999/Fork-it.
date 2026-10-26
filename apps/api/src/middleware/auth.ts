@@ -15,7 +15,8 @@ export const signSession = (id: string, tokenVersion: number) =>
 /** Loads the user from the session cookie (if any). Re-checks DB each request so suspension/role changes apply immediately. */
 export async function loadUser(req: Request, _res: Response, next: NextFunction) {
   try {
-    const token = req.cookies?.[COOKIE];
+    const bearer = /^Bearer (.+)$/.exec(req.get('authorization') ?? '')?.[1];
+    const token = req.cookies?.[COOKIE] ?? bearer;
     if (!token) return next();
     const p = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as { sub: string; v: number };
     const u = await User.findById(p.sub);

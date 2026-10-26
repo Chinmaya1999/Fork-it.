@@ -43,3 +43,19 @@ describe('stripCloneSteps', () => {
   });
   it('leaves READMEs without clone steps unchanged', () => { const md = '# T\n\n```js\nconsole.log(1)\n```'; expect(stripCloneSteps(md)).toBe(md); });
 });
+
+describe('token mode (cross-origin / Safari clients)', () => {
+  it('returns a bearer token only when asked, and the token alone authenticates (no cookie)', async () => {
+    const { default: request } = await import('supertest'); const { createApp } = await import('../src/app.js'); const { User } = await import('../src/models/User.js'); const argon2 = (await import('argon2')).default;
+    const app = createApp(); const H = { 'x-requested-with': 'projectforge' };
+    await User.create({ name: 'Tok', email: 'tok@t.dev', passwordHash: await argon2.hash('correct-horse-battery-9'), emailVerified: true });
+    const plain = await request(app).post('/api/v1/auth/login').set(H).send({ email: 'tok@t.dev', password: 'correct-horse-battery-9' });
+    expect(plain.status).toBe(200); expect(plain.body.token).toBeUndefined();
+    const r = await request(app).post('/api/v1/auth/login').set(H).set('x-token-auth', '1').send({ email: 'tok@t.dev', password: 'correct-horse-battery-9' });
+    expect(typeof r.body.token).toBe('string');
+    const me = await request(app).get('/api/v1/auth/me').set('authorization', `Bearer ${r.body.token}`); // fresh client: no cookie jar
+    expect(me.body.user.email).toBe('tok@t.dev');
+    expect((await request(app).get('/api/v1/auth/me').set('authorization', 'Bearer garbage')).body.user).toBeNull();
+    expect((await request(app).get('/api/v1/orders').set('authorization', 'Bearer garbage')).status).toBe(401);
+  });
+});

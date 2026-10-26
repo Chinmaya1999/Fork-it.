@@ -20,6 +20,8 @@ const DUMMY_HASH = await argon2.hash('timing-equaliser-not-a-real-password', { t
 const setCookie = (res: import('express').Response, token: string) =>
   res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: isProd, maxAge: 7 * 864e5, path: '/' });
 
+/** Cross-origin clients (frontend on another site, Safari blocks third-party cookies) opt in with X-Token-Auth and get the session token in the body too. Cookie clients never see it. */
+const withToken = (req: import('express').Request, user: any) => ({ user: publicUser(user), ...(req.get('x-token-auth') === '1' && { token: signSession(user.id, user.tokenVersion) }) });
 const publicUser = (u: any) => ({ id: u.id, name: u.name, email: u.email, role: u.role, emailVerified: u.emailVerified, degree: u.degree, college: u.college, semester: u.semester });
 
 authRouter.post('/register', limiter, wrap(async (req, res) => {
@@ -33,7 +35,7 @@ authRouter.post('/register', limiter, wrap(async (req, res) => {
   });
   await sendMail(user.email, 'Verify your email', `Verify: ${env.CLIENT_URL}/verify-email?token=${verifyToken}`);
   setCookie(res, signSession(user.id, user.tokenVersion));
-  res.status(201).json({ user: publicUser(user) });
+  res.status(201).json(withToken(req, user));
 }));
 
 authRouter.post('/login', limiter, wrap(async (req, res) => {
@@ -52,7 +54,7 @@ authRouter.post('/login', limiter, wrap(async (req, res) => {
   if (user.status !== 'active') throw new HttpError(403, 'Account suspended', 'suspended');
   user.failedLogins = 0; user.lockUntil = undefined; await user.save();
   setCookie(res, signSession(user.id, user.tokenVersion));
-  res.json({ user: publicUser(user) });
+  res.json(withToken(req, user));
 }));
 
 authRouter.post('/logout', (_req, res) => { res.clearCookie(COOKIE, { path: '/' }); res.json({ ok: true }); });
@@ -108,7 +110,7 @@ authRouter.post('/change-password', requireAuth, wrap(async (req, res) => {
   if (!u || !(await argon2.verify(u.passwordHash, current))) throw unauthorized('Current password is incorrect');
   u.passwordHash = await argon2.hash(password, { type: argon2.argon2id }); u.tokenVersion += 1; await u.save();
   setCookie(res, signSession(u.id, u.tokenVersion));
-  res.json({ ok: true });
+  res.json({ ok: true, ...(req.get('x-token-auth') === '1' && { token: signSession(u.id, u.tokenVersion) }) });
 }));
 
 authRouter.patch('/profile', requireAuth, wrap(async (req, res) => {

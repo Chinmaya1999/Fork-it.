@@ -29,12 +29,12 @@ export function Markdown({ source, repoUrl }: { source: string; repoUrl?: string
     if (/^(https?:|mailto:|#)/i.test(u)) return u;
     if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return undefined; // blocks javascript:, data:, etc.
     if (!m) return undefined;
-    const path = u.replace(/^\.?\//, '');
+    const path = u.split(/[?#]/)[0].split('/').reduce<string[]>((a, seg) => (seg === '..' ? (a.pop(), a) : seg && seg !== '.' ? (a.push(seg), a) : a), []).join('/'); // normalise ./ and ../ so the URL stays inside the repo
     return kind === 'img' ? `https://raw.githubusercontent.com/${m[1]}/${m[2]}/HEAD/${path}` : `https://github.com/${m[1]}/${m[2]}/blob/HEAD/${path}`;
   };
   const components: Components = {
     a: ({ href, children }) => { const h = fix(href, 'link'); return h ? <a href={h} target={h.startsWith('#') ? undefined : '_blank'} rel="noopener noreferrer nofollow">{children}</a> : <span>{children}</span>; },
-    img: ({ src, alt }) => { const s = fix(typeof src === 'string' ? src : undefined, 'img'); return s ? <img src={s} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" /> : null; },
+    img: ({ src, alt }) => { const s = fix(typeof src === 'string' ? src : undefined, 'img'); return s ? <img src={s} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : null; },
     pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
   };
   return <div className="md"><ReactMarkdown remarkPlugins={[remarkGfm]} components={components} urlTransform={(u) => u}>{source}</ReactMarkdown></div>;

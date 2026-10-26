@@ -3,6 +3,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { User } from '@/lib/types';
 import { DEGREE_LEVELS, loginSchema, registerSchema } from '@projectforge/shared';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,11 +16,11 @@ function Shell({ title, sub, children }: { title: string; sub: string; children:
 const Err = ({ msg }: { msg?: string }) => msg ? <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">{msg}</p> : null;
 
 export function Login() {
-  const { refresh } = useAuth(); const nav = useNavigate(); const [sp] = useSearchParams(); const [err, setErr] = useState<string>();
+  const { refresh } = useAuth(); const qc = useQueryClient(); const nav = useNavigate(); const [sp] = useSearchParams(); const [err, setErr] = useState<string>();
   const f = useForm({ resolver: zodResolver(loginSchema) });
   return (
     <Shell title="Welcome back" sub="Log in to your dashboard.">
-      <form className="space-y-4" onSubmit={f.handleSubmit(async (v) => { setErr(undefined); try { const r = await api.post<{ user: { role: string } }>('/auth/login', v); await refresh(); nav(sp.get('next') ?? (['admin', 'support'].includes(r.user.role) ? '/admin' : '/dashboard')); } catch (e) { setErr((e as ApiError).message); } })}>
+      <form className="space-y-4" onSubmit={f.handleSubmit(async (v) => { setErr(undefined); try { const r = await api.post<{ user: User & { role: string } }>('/auth/login', v); qc.setQueryData(['me'], { user: r.user }); void refresh(); nav(sp.get('next') ?? (['admin', 'support'].includes(r.user.role) ? '/admin' : '/dashboard')); } catch (e) { setErr((e as ApiError).message); } })}>
         <Err msg={err} />
         <Field label="Email" error={f.formState.errors.email?.message as string}><Input type="email" autoComplete="email" {...f.register('email')} /></Field>
         <Field label="Password" error={f.formState.errors.password?.message as string}><Input type="password" autoComplete="current-password" {...f.register('password')} /></Field>
@@ -30,12 +32,12 @@ export function Login() {
 }
 
 export function Register() {
-  const { refresh } = useAuth(); const nav = useNavigate(); const [err, setErr] = useState<string>();
+  const { refresh } = useAuth(); const qc = useQueryClient(); const nav = useNavigate(); const [err, setErr] = useState<string>();
   const f = useForm({ resolver: zodResolver(registerSchema) });
   const e = f.formState.errors;
   return (
     <Shell title="Create your account" sub="Free to join. Verify your email to purchase projects.">
-      <form className="space-y-4" onSubmit={f.handleSubmit(async (v) => { setErr(undefined); try { await api.post('/auth/register', v); await refresh(); nav('/dashboard'); } catch (x) { setErr((x as ApiError).message); } })}>
+      <form className="space-y-4" onSubmit={f.handleSubmit(async (v) => { setErr(undefined); try { const r = await api.post<{ user: User }>('/auth/register', v); qc.setQueryData(['me'], { user: r.user }); void refresh(); nav('/dashboard'); } catch (x) { setErr((x as ApiError).message); } })}>
         <Err msg={err} />
         <Field label="Full name" error={e.name?.message as string}><Input autoComplete="name" {...f.register('name')} /></Field>
         <Field label="Email" error={e.email?.message as string}><Input type="email" autoComplete="email" {...f.register('email')} /></Field>

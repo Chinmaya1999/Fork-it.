@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Lock, ShieldCheck } from 'lucide-react';
 import { DEGREE_LEVELS } from '@projectforge/shared';
-import { api } from '@/lib/api';
+import { api, apiUrl, authHeaders } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { Button, Card, Field, Input, Select } from '@/components/ui';
 import type { OrderView } from '@/pages/dashboard/Orders';
@@ -23,7 +23,7 @@ export function ReportKit({ slug, title, isFree }: { slug: string; title: string
   const download = async (format: 'pdf' | 'docx') => {
     setBusy(format); setMsg(undefined);
     try {
-      const res = await fetch(`/api/v1/projects/${slug}/report`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'projectforge' }, body: JSON.stringify({ format, details: Object.fromEntries(Object.entries(f).filter(([, v]) => v.trim())) }) });
+      const res = await fetch(apiUrl(`/api/v1/projects/${slug}/report`), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'projectforge', ...authHeaders() }, body: JSON.stringify({ format, details: Object.fromEntries(Object.entries(f).filter(([, v]) => v.trim())) }) });
       if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j?.error?.message ?? 'Could not generate the report'); }
       const pages = res.headers.get('X-Report-Pages'); const blob = await res.blob(); const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `${slug}-project-report.${format}`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
