@@ -6,6 +6,9 @@ const schema = z.object({
   CLIENT_URL: z.string().url().default('http://localhost:5173'),
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  CASHFREE_APP_ID: z.string().optional(),
+  CASHFREE_SECRET_KEY: z.string().optional(),
+  CASHFREE_ENV: z.enum(['production', 'sandbox']).optional(), // default: inferred from the secret key (cfsk_ma_test_… = sandbox)
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),

@@ -1,7 +1,7 @@
 import { Schema, model } from 'mongoose';
 const paymentSchema = new Schema({
   order: { type: Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
-  gateway: { type: String, enum: ['razorpay', 'mock'], required: true },
+  gateway: { type: String, enum: ['razorpay', 'cashfree', 'mock'], required: true },
   gatewayOrderId: String,
   gatewayPaymentId: { type: String, unique: true, sparse: true },
   amountPaise: { type: Number, required: true },

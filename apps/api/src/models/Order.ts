@@ -11,8 +11,9 @@ const orderSchema = new Schema({
   amountPaise: { type: Number, required: true, min: 1, validate: Number.isInteger }, // server-calculated; never from the browser
   currency: { type: String, default: 'INR' },
   status: { type: String, enum: ORDER_STATUSES, default: 'created', index: true },
-  gateway: { type: String, enum: ['razorpay', 'mock'], required: true },
+  gateway: { type: String, enum: ['razorpay', 'cashfree', 'mock'], required: true },
   gatewayOrderId: { type: String, index: true },
+  gatewaySessionId: String, // Cashfree payment_session_id, kept so a retried checkout can reuse the order
   paidAt: Date,
   receiptNo: { type: String, unique: true, sparse: true },
   refundedPaise: { type: Number, default: 0 },

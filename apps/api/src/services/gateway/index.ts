@@ -1,6 +1,7 @@
 import { env, isProd } from '../../config/env.js';
 import type { Gateway } from './types.js';
 import { razorpayGateway } from './razorpay.js';
+import { cashfreeGateway } from './cashfree.js';
 import { mockGateway } from './mock.js';
 
 /** The sandbox lets anyone "pay" without money, so it is limited to non-production AND a localhost client URL: a deploy that forgets NODE_ENV=production can never expose it. */
@@ -12,9 +13,10 @@ export const sandboxAllowed = () => {
 let override: Gateway | null | undefined;
 export const setGatewayForTests = (g: Gateway | null | undefined) => { override = g; };
 
-/** Razorpay when keys exist; the dev test gateway otherwise (never in production); null = payments unavailable. */
+/** Cashfree, else Razorpay when keys exist; the dev test gateway otherwise (never in production); null = payments unavailable. */
 export function getGateway(): Gateway | null {
   if (override !== undefined) return override;
+  if (env.CASHFREE_APP_ID && env.CASHFREE_SECRET_KEY) return cashfreeGateway(env.CASHFREE_APP_ID, env.CASHFREE_SECRET_KEY, env.CASHFREE_ENV ?? (env.CASHFREE_SECRET_KEY.includes('_test_') ? 'sandbox' : 'production'));
   if (env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET) return razorpayGateway(env.RAZORPAY_KEY_ID, env.RAZORPAY_KEY_SECRET);
   return sandboxAllowed() ? mockGateway : null;
 }

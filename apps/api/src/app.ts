@@ -16,6 +16,7 @@ import { meRouter } from './modules/me/me.routes.js';
 import { ordersRouter } from './modules/orders/orders.routes.js';
 import { downloadsRouter } from './modules/downloads/downloads.routes.js';
 import { razorpayWebhook } from './modules/webhooks/razorpay.js';
+import { cashfreeWebhook } from './modules/webhooks/cashfree.js';
 import { notificationsRouter } from './modules/notifications/notifications.routes.js';
 import { ticketsRouter } from './modules/tickets/tickets.routes.js';
 import { staffRouter } from './modules/staff/staff.routes.js';
@@ -34,6 +35,7 @@ export function createApp() {
   app.use(pinoHttp({ logger, genReqId: (r) => (r as any).id }));
   app.use(helmet());
   app.use(cors({ origin: allowedOrigins, credentials: true, exposedHeaders: ['Content-Disposition'] }));
+  app.post('/api/v1/webhooks/cashfree', express.raw({ type: '*/*', limit: '1mb' }), (req, res, next) => { cashfreeWebhook(req, res).catch(next); });
   app.post('/api/v1/webhooks/razorpay', express.raw({ type: '*/*', limit: '1mb' }), (req, res, next) => { razorpayWebhook(req, res).catch(next); }); // raw body, before JSON parsing
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());

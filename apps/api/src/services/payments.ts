@@ -3,7 +3,9 @@ import { Order } from '../models/Order.js';
 import { Payment } from '../models/Payment.js';
 import { Refund } from '../models/Refund.js';
 import { nextSeq } from '../models/Counter.js';
+import { User } from '../models/User.js';
 import { badRequest, HttpError } from '../utils/errors.js';
+import { env } from '../config/env.js';
 import { getGateway } from './gateway/index.js';
 import { notify, notifyStaff } from './notify.js';
 import { formatINR } from '@projectforge/shared';
@@ -25,10 +27,11 @@ export async function createCheckout(i: CheckoutInput) {
   if (order && (order.amountPaise !== i.amountPaise || order.gateway !== gw.name)) { order.status = 'cancelled'; await order.save(); order = null; } // price changed: never reuse a stale order
   if (!order) {
     const ref = `PF-${String(await nextSeq('order')).padStart(6, '0')}`;
-    const g = await gw.createOrder({ amountPaise: i.amountPaise, receipt: ref });
-    order = await Order.create({ ...key, ref, title: i.title, amountPaise: i.amountPaise, gateway: gw.name, gatewayOrderId: g.id });
+    const u = await User.findById(i.userId).select('name email').lean();
+    const g = await gw.createOrder({ amountPaise: i.amountPaise, receipt: ref, customer: { id: String(i.userId), name: u?.name, email: u?.email }, returnUrl: `${env.CLIENT_URL}/dashboard/orders` });
+    order = await Order.create({ ...key, ref, title: i.title, amountPaise: i.amountPaise, gateway: gw.name, gatewayOrderId: g.id, gatewaySessionId: g.sessionId });
   } else if (order.status === 'failed') { order.status = 'created'; await order.save(); }
-  return { order, checkout: { provider: gw.name, keyId: gw.keyId, gatewayOrderId: order.gatewayOrderId!, amountPaise: order.amountPaise, currency: 'INR', description: order.title, orderId: String(order._id) } };
+  return { order, checkout: { provider: gw.name, keyId: gw.keyId, mode: gw.mode, sessionId: order.gatewaySessionId ?? undefined, gatewayOrderId: order.gatewayOrderId!, amountPaise: order.amountPaise, currency: 'INR', description: order.title, orderId: String(order._id) } };
 }
 
 /**
@@ -42,15 +45,15 @@ export async function confirmPayment(orderId: string, paymentId: string, opts: {
   // A 'cancelled' order (e.g. price changed after checkout opened) is still fulfilled if the gateway proves the customer paid exactly that order's amount: never keep money without delivering.
   const gw = getGateway(); if (!gw || gw.name !== order.gateway) throw new HttpError(503, 'Payment gateway unavailable', 'payments_unavailable');
 
-  if (opts.source === 'client_verify') { // browsers are untrusted: signature is mandatory
+  if (opts.source === 'client_verify' && gw.verifySignature) { // browsers are untrusted: signature is mandatory (gateways without signed callbacks are checked server-to-server below)
     if (!opts.signature || !gw.verifySignature({ orderId: order.gatewayOrderId!, paymentId, signature: opts.signature })) { await recordFailure(order, paymentId, 'signature mismatch'); throw badRequest('Payment signature could not be verified'); }
   }
   let amount = opts.webhookAmountPaise; // webhook payloads are HMAC-verified by the caller
   if (opts.source !== 'webhook' || amount === undefined) {
-    let info = await gw.fetchPayment(paymentId); // trusted gateway data, not browser data
+    let info = await gw.fetchPayment(paymentId, order.gatewayOrderId ?? undefined); // trusted gateway data, not browser data
     if (info?.status === 'authorized' && info.orderId === order.gatewayOrderId && info.amountPaise === order.amountPaise && gw.capturePayment) { // manual-capture accounts: capture only after order + amount match
       try { await gw.capturePayment({ paymentId, amountPaise: info.amountPaise }); } catch { /* may have been captured concurrently: re-read the truth below */ }
-      info = await gw.fetchPayment(paymentId);
+      info = await gw.fetchPayment(paymentId, order.gatewayOrderId ?? undefined);
     }
     if (!info || info.orderId !== order.gatewayOrderId || info.status !== 'captured') throw badRequest('Payment is not confirmed by the gateway yet');
     amount = info.amountPaise;
@@ -87,7 +90,7 @@ export async function refundOrder(orderId: string, amountPaise: number | undefin
   const reserved = await Order.findOneAndUpdate({ _id: order._id, status: 'paid', refundedPaise: { $lte: order.amountPaise - amt } }, { $inc: { refundedPaise: amt } }, { new: true });
   if (!reserved) throw new HttpError(409, 'A refund for this order is already in progress or exceeds the remaining amount', 'conflict');
   let r: { id: string };
-  try { r = await gw.refund({ paymentId: payment.gatewayPaymentId, amountPaise: amt }); }
+  try { r = await gw.refund({ paymentId: payment.gatewayPaymentId, amountPaise: amt, orderId: order.gatewayOrderId ?? undefined }); }
   catch (e) { await Order.updateOne({ _id: order._id }, { $inc: { refundedPaise: -amt } }); throw e; } // gateway refused: release the reservation
   await Refund.create({ order: order._id, payment: payment._id, amountPaise: amt, reason, gatewayRefundId: r.id, createdBy: adminId });
   if (reserved.refundedPaise >= reserved.amountPaise) { order.status = 'refunded'; order.refundedPaise = reserved.refundedPaise; await Order.updateOne({ _id: order._id }, { status: 'refunded' }); await hooks.get(`refund:${order.type}`)?.(order); } else { order.refundedPaise = reserved.refundedPaise; }

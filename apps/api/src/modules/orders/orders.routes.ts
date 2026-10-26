@@ -24,7 +24,7 @@ ordersRouter.post(['/orders', '/orders/:id/verify', '/orders/:id/failed'], money
 export const isPurchasable = async (p: { _id: any; setupGuide?: string | null }) => !!p.setupGuide?.trim() || !!(await ProjectFile.exists({ project: p._id }));
 const view = (o: any) => ({ id: String(o._id), ref: o.ref, type: o.type, title: o.title, amountPaise: o.amountPaise, status: o.status, createdAt: o.createdAt, paidAt: o.paidAt, receiptNo: o.receiptNo, refundedPaise: o.refundedPaise, project: o.project && typeof o.project === 'object' && o.project.slug ? { slug: o.project.slug, title: o.project.title } : undefined, customRequest: o.customRequest ? String(o.customRequest._id ?? o.customRequest) : undefined });
 
-ordersRouter.get('/payments/config', wrap(async (_req, res) => { const g = getGateway(); res.json(g ? { provider: g.name, keyId: g.keyId, sandbox: g.name === 'mock' } : { provider: null }); }));
+ordersRouter.get('/payments/config', wrap(async (_req, res) => { const g = getGateway(); res.json(g ? { provider: g.name, keyId: g.keyId, mode: g.mode, sandbox: g.name === 'mock' } : { provider: null }); }));
 
 ordersRouter.post('/orders', wrap(async (req, res) => {
   const { projectId } = z.object({ projectId: z.string().refine((v) => mongoose.isValidObjectId(v)) }).parse(req.body);
@@ -54,9 +54,16 @@ ordersRouter.get('/orders/:id', wrap(async (req, res) => {
 
 // Client-side verify: signature is mandatory and the gateway is asked for the real payment status.
 ordersRouter.post('/orders/:id/verify', wrap(async (req, res) => {
-  const b = z.object({ paymentId: z.string().min(5).max(100), signature: z.string().min(10).max(200) }).parse(req.body);
+  const b = z.object({ paymentId: z.string().min(5).max(100).optional(), signature: z.string().min(10).max(200).optional() }).parse(req.body);
   const o = await Order.findOne({ _id: req.params.id, user: req.user!.id }); if (!o) throw notFound('Order not found');
-  const r = await confirmPayment(String(o._id), b.paymentId, { signature: b.signature, source: 'client_verify' });
+  let paymentId = b.paymentId;
+  const gw = getGateway();
+  if (gw?.listPayments && o.gatewayOrderId && gw.name === o.gateway) { // gateways without a signed browser callback (Cashfree): find the successful payment ourselves
+    paymentId = (await gw.listPayments(o.gatewayOrderId)).find((p) => p.status === 'captured')?.id;
+    if (!paymentId) throw badRequest('Payment is not confirmed by the gateway yet');
+  }
+  if (!paymentId) throw badRequest('paymentId is required');
+  const r = await confirmPayment(String(o._id), paymentId, { signature: b.signature, source: 'client_verify' });
   res.json({ order: view(r.order), alreadyPaid: r.alreadyPaid });
 }));
 
