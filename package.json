@@ -1,0 +1,34 @@
+{
+  "name": "projectforge",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @projectforge/api\" \"npm run dev -w @projectforge/web\"",
+    "dev:api": "npm run dev -w @projectforge/api",
+    "dev:web": "npm run dev -w @projectforge/web",
+    "seed": "npm run seed -w @projectforge/api",
+    "import-github": "npm run import-github -w @projectforge/api --",
+    "create-admin": "npm run create-admin -w @projectforge/api",
+    "build": "npm run build -w @projectforge/shared && npm run build -w @projectforge/api && npm run build -w @projectforge/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "import-projectworlds": "npm run import-projectworlds -w @projectforge/api",
+    "reprice": "npm run reprice -w @projectforge/api",
+    "import-enggroom": "npm run import-enggroom -w @projectforge/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.6.3"
+  },
+  "allowScripts": {
+    "argon2@0.41.1": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true,
+    "mongodb-memory-server@10.4.3": true
+  }
+}
