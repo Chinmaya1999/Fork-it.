@@ -1,7 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
-import { env } from './config/env.js';
+import { env, allowedOrigins } from './config/env.js';
 import { COOKIE } from './middleware/auth.js';
 import { User } from './models/User.js';
 import { setIO } from './services/realtime.js';
@@ -11,7 +11,7 @@ import { logger } from './utils/logger.js';
 const parseCookies = (h?: string) => Object.fromEntries((h ?? '').split(';').map((p) => p.trim().split('=')).filter((p) => p.length >= 2).map(([k, ...v]) => [k, decodeURIComponent(v.join('='))]));
 
 export function initSocket(server: HttpServer) {
-  const io = new Server(server, { cors: { origin: [env.CLIENT_URL], credentials: true }, maxHttpBufferSize: 10_000 });
+  const io = new Server(server, { cors: { origin: allowedOrigins, credentials: true }, maxHttpBufferSize: 10_000 });
   setIO(io);
   io.use(async (socket, next) => { // authenticate the connection with the same session cookie as REST
     try {

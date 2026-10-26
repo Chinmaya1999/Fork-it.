@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser';
 import crypto from 'node:crypto';
 import { pinoHttp } from 'pino-http';
 import mongoSanitize from './middleware/sanitize.js';
-import { env } from './config/env.js';
+import { env, allowedOrigins } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { csrfGuard, loadUser } from './middleware/auth.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
@@ -33,7 +33,7 @@ export function createApp() {
   app.use((req, res, next) => { req.id = req.get('x-request-id') ?? crypto.randomUUID(); res.setHeader('x-request-id', req.id); next(); });
   app.use(pinoHttp({ logger, genReqId: (r) => (r as any).id }));
   app.use(helmet());
-  app.use(cors({ origin: [env.CLIENT_URL], credentials: true, exposedHeaders: ['Content-Disposition'] }));
+  app.use(cors({ origin: allowedOrigins, credentials: true, exposedHeaders: ['Content-Disposition'] }));
   app.post('/api/v1/webhooks/razorpay', express.raw({ type: '*/*', limit: '1mb' }), (req, res, next) => { razorpayWebhook(req, res).catch(next); }); // raw body, before JSON parsing
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());

@@ -17,3 +17,6 @@ const schema = z.object({
 
 export const env = schema.parse(process.env);
 export const isProd = env.NODE_ENV === 'production';
+
+/** Browser origins allowed by CORS (REST + Socket.IO): the configured client plus the deployed Vercel frontend. */
+export const allowedOrigins = [...new Set([env.CLIENT_URL, 'https://fork-it-1i7b.vercel.app'])];
